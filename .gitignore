@@ -1,1 +1,4 @@
 /test_files/
+*.xlsx
+test_*.py
+*_example.py
