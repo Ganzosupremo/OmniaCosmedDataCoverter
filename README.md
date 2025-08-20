@@ -1,22 +1,135 @@
-# COSMED XML Data Converter
+# 🫁 COSMED XML Data Converter
 
-A comprehensive tool for extracting and converting COSMED cardiopulmonary exercise test (CPET) data from XML files to Excel spreadsheets.
+A comprehensive Python application for converting COSMED cardiopulmonary exercise test (CPET) data from XML files to Excel spreadsheets. Features multiple interfaces: Python API, Command-Line Interface (CLI), and modern GUI.
+
+![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+
+## 🎯 Features
+
+### ✨ Core Functionality
+- **Batch Processing**: Process multiple XML files simultaneously
+- **Three Export Formats**: Selected parameters, Max values only, or Complete dataset
+- **Automatic Data Extraction**: Extract Subject ID and 15 key cardiopulmonary parameters
+- **Professional Excel Output**: Formatted spreadsheets with proper headers and units
+- **Cross-Platform Support**: Works on Windows, macOS, and Linux
+
+### 📊 Export Types
+
+1. **Selected Parameters** (15 key metrics):
+   - VO2/kg (ml/min/kg) at MFO, AT, RC, and Max phases
+   - VCO2/kg (ml/min/kg) at MFO, AT, RC, and Max phases
+   - VE/kg (L/min/kg) at MFO, AT, RC, and Max phases
+   - HR (bpm) at AT, RC, and Max phases
+
+2. **Max Values Only**:
+   - Maximum values for all available parameters
+   - Simplified dataset for peak performance analysis
+
+3. **Complete Dataset**:
+   - All measurement phases (Rest, Warmup, MFO, AT, RC, Max, Predicted, etc.)
+   - Comprehensive data for detailed research and analysis
+
+### 🖥️ Multiple Interfaces
+
+#### 1. **Modern GUI Application** ⭐
+- Built with CustomTkinter for modern appearance
+- Dark/Light theme support
+- Real-time progress tracking
+- Auto-open result files
+- Comprehensive help system
+
+#### 2. **Command-Line Interface**
+- Professional argument parsing
+- Verbose output mode
+- Batch processing capabilities
+- Integration with automation scripts
+
+#### 3. **Python API**
+- Direct integration into existing workflows
+- Programmatic access to all features
+- Extensible class-based architecture
 
 ## 🚀 Quick Start
 
 ### Installation
-1. **Download** the project folder to your computer
-2. **Run setup script**:
-   - Windows: Double-click `setup.bat`
-   - Linux/Mac: `chmod +x setup.sh && ./setup.sh`
+
+1. **Clone or Download**:
+   ```bash
+   git clone <repository-url>
+   cd CostmoDataConverter
+   ```
+
+2. **Automatic Setup** (Recommended):
+   
+   **Windows**:
+   ```cmd
+   setup.bat
+   ```
+   
+   **macOS/Linux**:
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+
+3. **Manual Installation**:
+   ```bash
+   python -m pip install pandas>=2.0.0 openpyxl>=3.1.0 customtkinter>=5.2.0
+   ```
 
 ### Usage
-```bash
-# Windows
-run_converter.bat test_files --export selected
 
-# Linux/Mac  
-./run_converter.sh test_files --export selected
+#### 🖥️ GUI Application (Recommended)
+
+**Windows**:
+```cmd
+run_gui.bat
+```
+
+**macOS/Linux**:
+```bash
+./run_gui.sh
+```
+
+Or directly:
+```bash
+python advanced_gui.py
+```
+
+#### 💻 Command Line Interface
+
+```bash
+# Selected parameters export
+python main.py input_folder output_file.xlsx --type selected
+
+# Max values only
+python main.py input_folder output_file.xlsx --type max
+
+# Complete dataset
+python main.py input_folder output_file.xlsx --type complete
+
+# With verbose output
+python main.py input_folder output_file.xlsx --type selected --verbose
+
+# List files without processing
+python main.py input_folder --list
+```
+
+#### 🐍 Python API
+
+```python
+from xml_data_reader import XmlDataReader
+from excel_exporter import ExcelExporter
+
+# Extract data
+reader = XmlDataReader("path/to/xml/folder")
+data = reader.extract_id_and_parameters()
+
+# Export to Excel
+exporter = ExcelExporter("output.xlsx")
+exporter.export_selected_parameters(data)
 ```
 
 ## 📊 Export Options

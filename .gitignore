@@ -2,3 +2,11 @@
 *.xlsx
 test_*.py
 *_example.py
+*.zip
+/docs/
+/__pycache__/
+modules/__pycache__/
+modules/*.pyc
+modules/utils/__pycache__/
+modules/core/__pycache__/
+modules/gui/__pycache__/

@@ -2,12 +2,12 @@
 Refactored XML Data Reader using modular architecture
 """
 from typing import List, Dict, Any, Optional
-from modules import DataExtractor, PathValidator, FileScanner, ErrorHandler, safe_execute
+from modules import DataExtractor, PathValidator, FileScanner, ErrorHandler
 
 class XmlDataReader:
     """
     Main XML Data Reader class using modular architecture
-    Maintains backward compatibility while using new modular structure
+    Maintains compatibility with existing code while using new modules internally
     """
     
     def __init__(self, dir_path: str = None):
@@ -32,11 +32,6 @@ class XmlDataReader:
             except ValueError as e:
                 self.error_handler.handle_exception(e, "XmlDataReader.__init__", "validation_error")
                 raise
-
-    @safe_execute(context="xml_file_parsing", error_type="parse_error")
-    def _parse_xml_file(self, file_path: str):
-        """Parse XML file using modular XML parser"""
-        return self.data_extractor.xml_parser.parse_file(file_path)
     
     def read_data(self) -> List[Dict[str, Any]]:
         """
@@ -45,7 +40,8 @@ class XmlDataReader:
         Returns:
             List of dictionaries with file_path and root_element
         """
-        self._validate_directory_path()
+        if not self.dir_path:
+            raise ValueError("Directory path must be provided.")
         
         try:
             # Get all XML files
@@ -70,7 +66,7 @@ class XmlDataReader:
         except Exception as e:
             self.error_handler.handle_exception(e, "read_data", "file_processing")
             raise
-
+    
     def extract_id_and_parameters(self) -> List[Dict[str, Any]]:
         """
         Extract ID and all parameters with their values from XML files
@@ -78,7 +74,8 @@ class XmlDataReader:
         Returns:
             List of dictionaries containing extracted data for each XML file
         """
-        self._validate_directory_path()
+        if not self.dir_path:
+            raise ValueError("Directory path must be provided.")
         
         try:
             self.error_handler.log_info(f"Starting extraction from directory: {self.dir_path}", "extract_id_and_parameters")
@@ -94,22 +91,14 @@ class XmlDataReader:
         except Exception as e:
             self.error_handler.handle_exception(e, "extract_id_and_parameters", "extraction_error")
             raise
-
-    def _validate_directory_path(self):
-        """Validate directory path using modular validator"""
-        if not self.dir_path:
-            raise ValueError("Folder path must be provided.")
-        
-        try:
-            self.dir_path = self.path_validator.validate_directory(self.dir_path)
-        except ValueError as e:
-            self.error_handler.handle_exception(e, "_validate_directory_path", "path_validation")
-            raise
-            
-    # Additional convenience methods using modular architecture
     
     def get_file_summary(self) -> Dict[str, Any]:
-        """Get summary information about XML files in directory"""
+        """
+        Get summary information about XML files in directory
+        
+        Returns:
+            Dictionary with summary statistics
+        """
         if not self.dir_path:
             raise ValueError("Directory path must be provided.")
         
@@ -120,12 +109,20 @@ class XmlDataReader:
             raise
     
     def validate_files(self) -> Dict[str, Any]:
-        """Validate all XML files in directory"""
+        """
+        Validate all XML files in directory
+        
+        Returns:
+            Validation report dictionary
+        """
         if not self.dir_path:
             raise ValueError("Directory path must be provided.")
         
         try:
+            # Get directory scan summary
             scan_summary = self.file_scanner.scan_directory_summary(self.dir_path)
+            
+            # Check file accessibility
             accessibility = self.file_scanner.validate_files_accessible(scan_summary['xml_files'])
             
             return {
@@ -144,7 +141,12 @@ class XmlDataReader:
             raise
     
     def get_available_parameters(self) -> List[str]:
-        """Get list of all unique parameter names available in XML files"""
+        """
+        Get list of all unique parameter names available in XML files
+        
+        Returns:
+            List of unique parameter names
+        """
         if not self.dir_path:
             raise ValueError("Directory path must be provided.")
         
@@ -153,4 +155,41 @@ class XmlDataReader:
             return summary.get('unique_parameters', [])
         except Exception as e:
             self.error_handler.handle_exception(e, "get_available_parameters", "parameter_discovery")
+            raise
+    
+    def extract_custom_parameters(self, parameter_names: List[str]) -> List[Dict[str, Any]]:
+        """
+        Extract specific parameters from XML files
+        
+        Args:
+            parameter_names: List of parameter names to extract
+            
+        Returns:
+            List of extracted data with only specified parameters
+        """
+        if not self.dir_path:
+            raise ValueError("Directory path must be provided.")
+        
+        try:
+            self.error_handler.log_info(f"Extracting custom parameters: {parameter_names}", "extract_custom_parameters")
+            
+            extracted_data = self.data_extractor.extract_selected_parameters(self.dir_path, parameter_names)
+            
+            self.error_handler.log_info(f"Successfully extracted {len(parameter_names)} parameters from {len(extracted_data)} files", "extract_custom_parameters")
+            
+            return extracted_data
+            
+        except Exception as e:
+            self.error_handler.handle_exception(e, "extract_custom_parameters", "custom_extraction")
+            raise
+    
+    def _validate_directory_path(self):
+        """Legacy method for backward compatibility"""
+        if not self.dir_path:
+            raise ValueError("Folder path must be provided.")
+        
+        try:
+            self.dir_path = self.path_validator.validate_directory(self.dir_path)
+        except ValueError as e:
+            self.error_handler.handle_exception(e, "_validate_directory_path", "path_validation")
             raise
