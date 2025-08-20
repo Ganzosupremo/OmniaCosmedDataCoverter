@@ -106,8 +106,6 @@ class XmlDataReader:
             self.error_handler.handle_exception(e, "_validate_directory_path", "path_validation")
             raise
             
-    # Additional convenience methods using modular architecture
-    
     def get_file_summary(self) -> Dict[str, Any]:
         """Get summary information about XML files in directory"""
         if not self.dir_path:

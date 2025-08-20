@@ -78,6 +78,12 @@ class ExcelFormatter:
     
     def _create_selected_parameters_dataframe(self, data: List[Dict[str, Any]]) -> pd.DataFrame:
         """Create DataFrame with selected parameters only"""
+        # Define the 15 key selected parameters
+        selected_parameters = [
+            "t", "Speed", "Pace", "VO2", "VO2/kg", "VCO2", 
+            "METS", "RQ", "VE", "Rf", "HR", "VO2/HR"
+        ]
+        
         rows = []
         
         for file_data in data:
@@ -86,23 +92,29 @@ class ExcelFormatter:
                 'Subject ID': file_data['subject_id']
             }
             
-            # Add selected parameters
+            # Add selected parameters only
             for param in file_data['parameters']:
                 param_name = param['Name']
                 unit = param['UM']
                 
-                # Create parameter columns for specific phases
-                if unit and unit != "---":
-                    base_name = f"{param_name} ({unit})"
-                else:
-                    base_name = param_name
-                
-                # Add relevant phases based on parameter type
-                phases_to_include = self._get_relevant_phases_for_parameter(param_name)
-                for phase in phases_to_include:
-                    if phase in param and param[phase] is not None:
-                        column_name = f"{base_name}_{phase}"
-                        row[column_name] = param[phase]
+                # Only process if this is a selected parameter
+                if param_name in selected_parameters:
+                    # Create parameter columns for specific phases
+                    if unit and unit != "---":
+                        base_name = f"{param_name} ({unit})"
+                    else:
+                        base_name = param_name
+                    
+                    # Define phases based on parameter - VO2/kg gets all phases, others get Max only
+                    if param_name == 'VO2/kg':
+                        phases_to_include = ['MFO', 'AT', 'RC', 'Max']
+                    else:
+                        phases_to_include = ['Max']
+                    
+                    for phase in phases_to_include:
+                        if phase in param and param[phase] is not None:
+                            column_name = f"{base_name}_{phase}"
+                            row[column_name] = param[phase]
             
             rows.append(row)
         
