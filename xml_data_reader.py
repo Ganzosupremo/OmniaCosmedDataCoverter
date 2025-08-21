@@ -6,8 +6,7 @@ from modules import DataExtractor, PathValidator, FileScanner, ErrorHandler, saf
 
 class XmlDataReader:
     """
-    Main XML Data Reader class using modular architecture
-    Maintains backward compatibility while using new modular structure
+    This class reads XML data from files in a specified directory.
     """
     
     def __init__(self, dir_path: str = None):

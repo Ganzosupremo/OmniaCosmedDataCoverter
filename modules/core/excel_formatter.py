@@ -317,3 +317,143 @@ class ExcelFormatter:
             base_mapping.update(selected_mapping)
         
         return base_mapping
+
+    def create_custom_parameters_dataframe(self, data: List[Dict[str, Any]], custom_parameters: Dict[str, List[str]]) -> pd.DataFrame:
+        """
+        Create DataFrame with custom selected parameters and phases
+        
+        Args:
+            data: List of extracted data dictionaries
+            custom_parameters: Dictionary mapping parameter names to phases to export
+                              e.g., {'VO2/kg': ['MFO', 'AT', 'RC', 'Max'], 'HR': ['Max']}
+            
+        Returns:
+            Formatted pandas DataFrame with custom parameters
+        """
+        if not data:
+            return pd.DataFrame()
+        
+        rows = []
+        
+        for file_data in data:
+            row = {
+                'Filename': file_data.get('filename', ''),
+                'Subject ID': file_data.get('subject_id', ''),
+            }
+            
+            # Get parameters data (it's a list of parameter dictionaries)
+            parameters_list = file_data.get('parameters', [])
+            
+            # Convert parameters list to dictionary for easier access
+            parameters_dict = {}
+            for param in parameters_list:
+                param_name = param.get('Name')
+                if param_name:
+                    parameters_dict[param_name] = param
+            
+            # Add custom selected parameters and phases
+            for param_name, phases in custom_parameters.items():
+                if param_name in parameters_dict:
+                    param_data = parameters_dict[param_name]
+                    
+                    for phase in phases:
+                        if phase in param_data:
+                            # Create column name
+                            if len(phases) == 1:
+                                column_name = param_name
+                            else:
+                                column_name = f"{param_name} - {phase}"
+                            
+                            # Get the value from the parameter data
+                            value = param_data.get(phase, '')
+                            row[column_name] = value
+                        else:
+                            # Add empty value if phase not found
+                            if len(phases) == 1:
+                                column_name = param_name
+                            else:
+                                column_name = f"{param_name} - {phase}"
+                            row[column_name] = ''
+                else:
+                    # Add empty values if parameter not found
+                    for phase in phases:
+                        if len(phases) == 1:
+                            column_name = param_name
+                        else:
+                            column_name = f"{param_name} - {phase}"
+                        row[column_name] = ''
+            
+            rows.append(row)
+        
+        return pd.DataFrame(rows)
+    
+    def save_custom_parameters_excel(self, data: List[Dict[str, Any]], file_path: str, custom_parameters: Dict[str, List[str]]) -> None:
+        """
+        Save custom parameters data to formatted Excel file
+        
+        Args:
+            data: Extracted data
+            file_path: Output file path
+            custom_parameters: Dictionary mapping parameter names to phases to export
+        """
+        df = self.create_custom_parameters_dataframe(data, custom_parameters)
+        
+        # Create workbook with formatted data
+        with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='COSMED Data', index=False)
+            workbook = writer.book
+            
+            # Apply formatting
+            self.apply_excel_formatting(workbook, 'COSMED Data')
+            
+            # Add custom summary sheet
+            self.create_custom_summary_sheet(workbook, data, custom_parameters)
+    
+    def create_custom_summary_sheet(self, workbook: Workbook, data: List[Dict[str, Any]], custom_parameters: Dict[str, List[str]]) -> None:
+        """
+        Create summary sheet for custom parameters export
+        
+        Args:
+            workbook: Excel workbook object
+            data: Extracted data
+            custom_parameters: Custom parameters configuration
+        """
+        summary_sheet = workbook.create_sheet('Export Summary')
+        
+        # Summary information
+        summary_data = [
+            ['Export Type', 'Custom Parameters'],
+            ['Total Subjects', len(data)],
+            ['Parameters Exported', len(custom_parameters)],
+            ['Total Phases', sum(len(phases) for phases in custom_parameters.values())],
+            [''],
+            ['Parameter Configuration:'],
+        ]
+        
+        # Add parameter details
+        for param_name, phases in custom_parameters.items():
+            summary_data.append([f'  {param_name}', ', '.join(phases)])
+        
+        # Write summary data
+        for row_idx, row_data in enumerate(summary_data, 1):
+            for col_idx, cell_value in enumerate(row_data, 1):
+                cell = summary_sheet.cell(row=row_idx, column=col_idx, value=cell_value)
+                
+                # Format headers
+                if row_idx == 1 or cell_value == 'Parameter Configuration:':
+                    cell.font = self.header_font
+                    cell.fill = self.header_fill
+                    cell.alignment = self.header_alignment
+        
+        # Auto-adjust column widths
+        for column in summary_sheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            summary_sheet.column_dimensions[column_letter].width = adjusted_width

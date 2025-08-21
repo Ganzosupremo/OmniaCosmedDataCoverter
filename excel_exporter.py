@@ -1,14 +1,12 @@
 """
 Refactored Excel Exporter using modular architecture
 """
-import pandas as pd
 from typing import List, Dict, Any
 from modules import ExportManager, ExcelFormatter, ErrorHandler, PathValidator
 
 class ExcelExporter:
     """
-    Main Excel Exporter class using modular architecture
-    Maintains compatibility with existing code while using new modules internally
+    Excel Exporter class for exporting data to Excel files.
     """
     
     def __init__(self, file_path: str):
@@ -107,6 +105,44 @@ class ExcelExporter:
         except Exception as e:
             self.error_handler.handle_exception(e, "export_extracted_xml_data", "export_error")
             raise
+
+    def export_custom_parameters(self, extracted_data: List[Dict[str, Any]], custom_parameters: Dict[str, List[str]]) -> bool:
+        """
+        Export custom selected parameters to Excel
+        
+        Args:
+            extracted_data: List of extracted XML data from xml_data_reader
+            custom_parameters: Dictionary mapping parameter names to list of phases to export
+                              e.g., {'VO2/kg': ['MFO', 'AT', 'RC', 'Max'], 'HR': ['Max']}
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.error_handler.log_info(f"Starting custom parameters export to {self.file_path}", "export_custom_parameters")
+            
+            if not extracted_data:
+                raise ValueError("No data provided for export")
+            
+            if not custom_parameters:
+                raise ValueError("No custom parameters specified")
+            
+            # Save with formatting using the Excel formatter
+            self.excel_formatter.save_custom_parameters_excel(extracted_data, self.file_path, custom_parameters)
+            
+            param_count = len(custom_parameters)
+            phase_count = sum(len(phases) for phases in custom_parameters.values())
+            
+            self.error_handler.log_info(
+                f"Successfully exported {len(extracted_data)} records with {param_count} custom parameters "
+                f"({phase_count} total phases)", "export_custom_parameters"
+            )
+            
+            return True
+            
+        except Exception as e:
+            self.error_handler.handle_exception(e, "export_custom_parameters", "export_error")
+            return False
 
     def get_export_preview(self, extracted_data: List[Dict[str, Any]], export_type: str = "selected", max_rows: int = 5) -> Dict[str, Any]:
         """
