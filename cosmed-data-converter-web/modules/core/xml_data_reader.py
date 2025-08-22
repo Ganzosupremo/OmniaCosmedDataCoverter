@@ -7,7 +7,10 @@ import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Optional
 
 class XmlDataReader:
-    """Reads and processes COSMED XML data files"""
+    """
+    Reads and processes COSMED XML data files
+    Simplified version for web deployment
+    """
     
     def __init__(self, dir_path: Optional[str] = None):
         """Initialize XML Data Reader"""

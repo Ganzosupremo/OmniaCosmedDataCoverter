@@ -5,7 +5,8 @@ COSMED XML Data Converter - Modules Web Version
 __version__ = "0.1.0"
 
 
-from .core.excel_exporter import ExcelExporter
-from .core.xml_data_reader import XmlDataReader
+from .core import ExcelExporter
+from .core import XmlDataReader
+from .utils import CSSLoader
 
-__all__ = ["ExcelExporter", "XmlDataReader"]
+__all__ = ["ExcelExporter", "XmlDataReader", "CSSLoader"]
