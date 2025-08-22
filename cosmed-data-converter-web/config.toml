@@ -1,5 +1,5 @@
 [settings]
-app_name = "My Streamlit App"
+app_name = "COSMED Data Converter Web Version"
 version = "0.1.0"
 debug = true
 

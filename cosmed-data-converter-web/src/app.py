@@ -1,11 +1,72 @@
 import streamlit as st
 import os
+import sys
 import tempfile
 import zipfile
 from io import BytesIO
 import pandas as pd
+
+# Add parent directory to path to import our modules
+parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, parent_dir)
+
 from xml_data_reader import XmlDataReader
 from excel_exporter import ExcelExporter
+
+def select_key_parameters():
+    """Select the standard 15 key parameters with appropriate phases"""
+    key_params = [
+        't', 'Speed', 'Pace', 'VO2', 'VO2/kg', 'VCO2', 
+        'METS', 'RQ', 'VE', 'Rf', 'HR', 'VO2/HR', 
+        'P Syst', 'P Diast', 'HRR'
+    ]
+    
+    st.session_state.custom_parameters = {}
+    
+    for param in key_params:
+        if param in st.session_state.available_parameters:
+            # Use smart defaults based on parameter type
+            if param == 'VO2/kg':
+                st.session_state.custom_parameters[param] = ['MFO', 'AT', 'RC', 'Max']
+            elif param in ['HRR', 'P Syst', 'P Diast']:
+                # These parameters typically have their primary data in the 'Value' field
+                st.session_state.custom_parameters[param] = ['Value']
+            else:
+                # Most other parameters use Max phase
+                st.session_state.custom_parameters[param] = ['Max']
+
+def scan_parameters_from_files(uploaded_files):
+    """Scan uploaded files to detect available parameters"""
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Save files temporarily
+            for file in uploaded_files:
+                file_path = os.path.join(temp_dir, file.name)
+                with open(file_path, "wb") as f:
+                    f.write(file.read())
+                file.seek(0)  # Reset file pointer
+            
+            # Extract parameters from sample files
+            reader = XmlDataReader(temp_dir)
+            sample_data = reader.extract_id_and_parameters()
+            
+            if sample_data:
+                params = set()
+                for file_data in sample_data[:3]:  # Sample first few files
+                    for param in file_data.get('parameters', []):
+                        if param.get('Name'):
+                            params.add(param['Name'])
+                
+                st.session_state.available_parameters = sorted(list(params))
+                return True
+            else:
+                st.session_state.available_parameters = []
+                return False
+                
+    except Exception as e:
+        st.error(f"Error scanning parameters: {str(e)}")
+        st.session_state.available_parameters = []
+        return False
 
 # Page configuration
 st.set_page_config(
@@ -55,6 +116,12 @@ if 'processed_data' not in st.session_state:
     st.session_state.processed_data = None
 if 'file_count' not in st.session_state:
     st.session_state.file_count = 0
+if 'available_parameters' not in st.session_state:
+    st.session_state.available_parameters = []
+if 'custom_parameters' not in st.session_state:
+    st.session_state.custom_parameters = {}
+if 'uploaded_files_data' not in st.session_state:
+    st.session_state.uploaded_files_data = None
 
 def main():
     # Header
@@ -125,7 +192,130 @@ def create_sidebar():
         # Custom parameters (if selected)
         if export_type == "custom":
             st.header("📋 Custom Parameters")
-            st.info("Custom parameter selection will be available after scanning files.")
+            
+            if st.session_state.available_parameters:
+                st.success(f"✅ Found {len(st.session_state.available_parameters)} parameters")
+                
+                # Quick selection buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Select Key 15", use_container_width=True, help="Select the standard 15 clinical parameters"):
+                        select_key_parameters()
+                        st.rerun()
+                
+                with col2:
+                    if st.button("Clear All", use_container_width=True, help="Clear all parameter selections"):
+                        st.session_state.custom_parameters = {}
+                        st.rerun()
+                
+                # Parameter selection
+                st.subheader("Select Parameters:")
+                
+                # Phase explanation
+                with st.expander("ℹ️ Understanding Measurement Phases", expanded=False):
+                    st.markdown("""
+                    **Common Measurement Phases:**
+                    - **Value**: Primary measurement value (used for parameters like HRR, blood pressure)
+                    - **Rest**: Baseline measurements before exercise
+                    - **Warmup**: Initial low-intensity exercise phase
+                    - **MFO**: Maximum Fat Oxidation point
+                    - **AT**: Anaerobic Threshold (VT1)
+                    - **RC**: Respiratory Compensation Point (VT2)
+                    - **Max**: Peak exercise values
+                    - **Pred**: Predicted values based on demographics
+                    - **PercPred**: Percentage of predicted values
+                    - **Normal**: Normal reference ranges
+                    - **Class**: Classification categories
+                    """)
+                
+                # Available phases (including Value which some parameters use as primary data)
+                available_phases = ['Value', 'Rest', 'Warmup', 'MFO', 'AT', 'RC', 'Max', 'Pred', 'PercPred', 'Normal', 'Class']
+                
+                # Create parameter selection interface
+                for param in st.session_state.available_parameters[:15]:  # Limit to first 15 for UI
+                    with st.expander(f"📊 {param}", expanded=param in st.session_state.custom_parameters):
+                        
+                        # Parameter checkbox
+                        param_selected = st.checkbox(
+                            f"Include {param}",
+                            value=param in st.session_state.custom_parameters,
+                            key=f"param_{param}"
+                        )
+                        
+                        if param_selected:
+                            # Phase selection
+                            st.write("Select measurement phases:")
+                            
+                            # Smart default phases based on parameter type
+                            default_phases = ['Max']  # Default fallback
+                            
+                            # Parameters that typically use 'Value' field
+                            if param in ['HRR', 'P Syst', 'P Diast']:
+                                default_phases = ['Value']
+                            # VO2/kg gets multiple phases for comprehensive analysis
+                            elif param == 'VO2/kg':
+                                default_phases = ['MFO', 'AT', 'RC', 'Max']
+                            # Metabolic and respiratory parameters often have meaningful data across phases
+                            elif param in ['VO2', 'VCO2', 'METS', 'RQ', 'VE', 'Rf']:
+                                default_phases = ['Max']  # Can be expanded to ['MFO', 'AT', 'RC', 'Max'] if desired
+                            # Time and performance parameters
+                            elif param in ['t', 'Speed', 'Pace']:
+                                default_phases = ['Max']
+                            # HR typically measured at multiple phases
+                            elif param == 'HR':
+                                default_phases = ['Max']  # Can be expanded to ['AT', 'RC', 'Max'] if desired
+                            
+                            current_phases = st.session_state.custom_parameters.get(param, default_phases)
+                            
+                            selected_phases = []
+                            
+                            # Group phases for better layout
+                            primary_phases = ['Value', 'Rest', 'Warmup', 'MFO', 'AT', 'RC', 'Max']
+                            secondary_phases = ['Pred', 'PercPred', 'Normal', 'Class']
+                            
+                            # Primary phases (more commonly used)
+                            st.write("**Primary Phases:**")
+                            phase_cols = st.columns(4)
+                            for i, phase in enumerate(primary_phases):
+                                with phase_cols[i % 4]:
+                                    if st.checkbox(
+                                        phase,
+                                        value=phase in current_phases,
+                                        key=f"phase_{param}_{phase}",
+                                        help=f"Include {phase} phase data for {param}"
+                                    ):
+                                        selected_phases.append(phase)
+                            
+                            # Secondary phases (less commonly used)
+                            with st.expander("📊 Additional Phases", expanded=False):
+                                phase_cols2 = st.columns(4)
+                                for i, phase in enumerate(secondary_phases):
+                                    with phase_cols2[i % 4]:
+                                        if st.checkbox(
+                                            phase,
+                                            value=phase in current_phases,
+                                            key=f"phase_{param}_{phase}",
+                                            help=f"Include {phase} data for {param}"
+                                        ):
+                                            selected_phases.append(phase)
+                            
+                            if selected_phases:
+                                st.session_state.custom_parameters[param] = selected_phases
+                            elif param in st.session_state.custom_parameters:
+                                del st.session_state.custom_parameters[param]
+                        
+                        elif param in st.session_state.custom_parameters:
+                            del st.session_state.custom_parameters[param]
+                
+                # Show selection summary
+                if st.session_state.custom_parameters:
+                    param_count = len(st.session_state.custom_parameters)
+                    phase_count = sum(len(phases) for phases in st.session_state.custom_parameters.values())
+                    st.success(f"📊 Selected: {param_count} parameters, {phase_count} total phases")
+                else:
+                    st.info("🔍 Select parameters above to customize your export")
+            else:
+                st.info("📤 Upload and scan files first to detect available parameters")
         
         # Help section
         st.header("📖 Help & Info")
@@ -151,6 +341,7 @@ def create_main_content():
     
     if uploaded_files:
         st.session_state.file_count = len(uploaded_files)
+        st.session_state.uploaded_files_data = uploaded_files
         
         # Display uploaded files
         with st.expander(f"📄 Uploaded Files ({len(uploaded_files)})", expanded=False):
@@ -159,20 +350,46 @@ def create_main_content():
                 file.seek(0)  # Reset file pointer
                 st.write(f"{i}. **{file.name}** ({file_size:.1f} KB)")
         
+        # Scan parameters button
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            if st.button("🔍 Scan Parameters", use_container_width=True, help="Scan files to detect available parameters"):
+                with st.spinner("Scanning parameters..."):
+                    if scan_parameters_from_files(uploaded_files):
+                        st.success(f"✅ Found {len(st.session_state.available_parameters)} parameters")
+                        st.rerun()
+                    else:
+                        st.error("❌ Could not detect parameters from files")
+        
         # File validation
         valid_files = validate_files(uploaded_files)
         
         if valid_files:
-            st.success(f"✅ {len(valid_files)} valid XML files ready for processing")
+            # Show available parameters if scanned
+            if st.session_state.available_parameters:
+                with st.expander(f"📊 Available Parameters ({len(st.session_state.available_parameters)})", expanded=False):
+                    cols = st.columns(3)
+                    for i, param in enumerate(st.session_state.available_parameters):
+                        with cols[i % 3]:
+                            st.write(f"• {param}")
             
-            # Process button
-            col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
+                # Check if custom export is selected and parameters are configured
+                export_type = st.session_state.export_type
+                can_process = True
+                
+                if export_type == "custom":
+                    if not st.session_state.custom_parameters:
+                        can_process = False
+                        st.error("❌ Please select custom parameters first")
+                
                 if st.button(
                     "⚡ Convert to Excel", 
                     type="primary", 
                     use_container_width=True,
-                    disabled=len(valid_files) == 0
+                    disabled=not can_process,
+                    help="Convert XML files to Excel format"
                 ):
                     process_files(valid_files)
         else:
@@ -236,20 +453,32 @@ def process_files(uploaded_files):
                     status_text.text(f"📊 Processing {len(extracted_data)} records...")
                     
                     # Create Excel file
-                    output_path = os.path.join(temp_dir, "cosmed_converted_data.xlsx")
-                    exporter = ExcelExporter(output_path)
-                    
                     export_type = st.session_state.export_type
                     
+                    if export_type == "custom":
+                        output_filename = "cosmed_custom_data.xlsx"
+                    else:
+                        output_filename = f"cosmed_{export_type}_data.xlsx"
+                    
+                    output_path = os.path.join(temp_dir, output_filename)
+                    exporter = ExcelExporter(output_path)
+                    
+                    # Export based on type
                     if export_type == "selected":
                         exporter.export_selected_parameters(extracted_data)
                     elif export_type == "max":
                         exporter.export_max_values_only(extracted_data)
                     elif export_type == "complete":
                         exporter.export_extracted_xml_data(extracted_data)
-                    else:  # custom
-                        # For now, default to selected
-                        exporter.export_selected_parameters(extracted_data)
+                    elif export_type == "custom":
+                        if st.session_state.custom_parameters:
+                            success = exporter.export_custom_parameters(extracted_data, st.session_state.custom_parameters)
+                            if not success:
+                                st.error("❌ Failed to export custom parameters")
+                                return
+                        else:
+                            st.error("❌ No custom parameters selected")
+                            return
                     
                     progress_bar.progress(0.9)
                     status_text.text("📝 Preparing download...")
@@ -259,11 +488,18 @@ def process_files(uploaded_files):
                         excel_data = excel_file.read()
                     
                     # Store results in session state
+                    custom_summary = None
+                    if export_type == "custom" and st.session_state.custom_parameters:
+                        param_count = len(st.session_state.custom_parameters)
+                        phase_count = sum(len(phases) for phases in st.session_state.custom_parameters.values())
+                        custom_summary = f"{param_count} parameters, {phase_count} phases"
+                    
                     st.session_state.processed_data = {
                         'excel_data': excel_data,
                         'file_count': len(extracted_data),
                         'export_type': export_type,
-                        'filename': f"cosmed_data_{export_type}.xlsx"
+                        'filename': output_filename,
+                        'custom_summary': custom_summary
                     }
                     
                     progress_bar.progress(1.0)
@@ -301,9 +537,13 @@ def show_results():
         )
     
     with col2:
+        export_display = data['export_type'].title()
+        if data['export_type'] == 'custom' and data.get('custom_summary'):
+            export_display = f"Custom ({data['custom_summary']})"
+        
         st.metric(
             label="Export Type",
-            value=data['export_type'].title(),
+            value=export_display,
             delta="✅ Ready"
         )
     
@@ -334,7 +574,33 @@ def show_results():
             # Clear session state and rerun
             st.session_state.processed_data = None
             st.session_state.file_count = 0
+            st.session_state.available_parameters = []
+            st.session_state.custom_parameters = {}
+            st.session_state.uploaded_files_data = None
             st.rerun()
+    
+    # Show custom parameters summary if applicable
+    if data['export_type'] == 'custom' and st.session_state.custom_parameters:
+        st.subheader("⚙️ Custom Parameters Used")
+        
+        with st.expander("View Selected Parameters", expanded=False):
+            for param_name, phases in st.session_state.custom_parameters.items():
+                st.write(f"**{param_name}**: {', '.join(phases)}")
+    
+    # Data preview section
+    with st.expander("👁️ Preview Excel Data", expanded=False):
+        try:
+            # Create a temporary preview by reading the Excel data
+            import io
+            preview_df = pd.read_excel(io.BytesIO(data['excel_data']), nrows=5)
+            
+            st.write("**First 5 rows of your exported data:**")
+            st.dataframe(preview_df, use_container_width=True)
+            
+            st.info(f"📊 Full dataset contains {data['file_count']} rows and {len(preview_df.columns)} columns")
+            
+        except Exception as e:
+            st.warning(f"Could not preview data: {str(e)}")
 
 def show_help_dialog():
     """Show help information"""
@@ -346,22 +612,43 @@ def show_help_dialog():
     - Select one or more COSMED XML export files
     - Supported format: XML files from COSMED software
     
-    ### Step 2: Choose Export Type
-    - **Selected Parameters**: 15 key clinical parameters
-    - **Max Values Only**: Peak performance values
-    - **Complete Dataset**: All measurement phases
-    - **Custom Parameters**: Choose specific data (coming soon)
+    ### Step 2: Scan Parameters (Optional)
+    - Click "🔍 Scan Parameters" to detect available parameters
+    - This enables custom parameter selection
+    - View available parameters in the expandable section
     
-    ### Step 3: Process & Download
+    ### Step 3: Choose Export Type
+    - **Selected Parameters**: 15 key clinical parameters (VO2/kg, HR, etc.)
+    - **Max Values Only**: Peak performance values from each parameter
+    - **Complete Dataset**: All measurement phases (Rest, Warmup, MFO, AT, RC, Max, etc.)
+    - **Custom Parameters**: Choose specific parameters and measurement phases
+    
+    ### Step 4: Configure Custom Parameters (if selected)
+    - Use sidebar to select specific parameters
+    - Choose measurement phases for each parameter (MFO, AT, RC, Max, etc.)
+    - Use "Select Key 15" for quick selection of standard clinical parameters
+    - VO2/kg automatically includes multiple phases (MFO, AT, RC, Max)
+    
+    ### Step 5: Process & Download
     - Click "Convert to Excel" to process files
+    - Preview the results before downloading
     - Download the generated Excel file
     - Open in Excel, LibreOffice, or similar software
     
     ### Supported Data
-    - VO2, VCO2, respiratory parameters
-    - Heart rate and metabolic data
-    - Multiple test phases (Rest, AT, Max, etc.)
-    - Patient demographics and test info
+    - VO2, VCO2, ventilatory parameters (VE, Rf)
+    - Heart rate and metabolic data (HR, METS, RQ)
+    - Exercise phases: Rest, Warmup, MFO, AT, RC, Max
+    - Patient demographics and test information
+    - Blood pressure data (systolic/diastolic)
+    """)
+    
+    st.success("""
+    💡 **Pro Tips:**
+    - Custom parameters allow you to create focused datasets for specific research
+    - The "Key 15" selection includes the most commonly used clinical parameters
+    - Large datasets work best with "Max Values Only" for initial analysis
+    - All processing happens locally in your browser - your data stays private
     """)
 
 def show_about_dialog():
@@ -369,24 +656,47 @@ def show_about_dialog():
     st.info("""
     ## ℹ️ About COSMED XML Converter
     
-    **Version**: 2.0 (Streamlit Web Edition)
+    **Version**: 2.1 (Streamlit Web Edition with Custom Parameters)
     
     **Purpose**: Convert COSMED cardiopulmonary exercise test data from XML format to Excel spreadsheets for easier analysis and reporting.
     
-    **Features**:
-    - Web-based interface (no installation required)
-    - Multiple export formats
-    - Batch processing of multiple files
-    - Automatic data validation
-    - Cross-platform compatibility
+    **New Features**:
+    - 🎯 **Custom Parameter Selection**: Choose exactly which parameters and phases to export
+    - 🔍 **Smart Parameter Scanning**: Automatically detect available parameters from your files
+    - 📊 **Data Preview**: See your data before downloading
+    - ⚡ **Quick Presets**: "Key 15" selection for standard clinical parameters
+    - 🧠 **Intelligent Phases**: VO2/kg automatically includes MFO, AT, RC, and Max phases
+    
+    **Core Features**:
+    - 🌐 **Web-based interface** (no installation required)
+    - 📁 **Multiple export formats** (Selected, Max, Complete, Custom)
+    - 🔄 **Batch processing** of multiple files
+    - ✅ **Automatic data validation**
+    - 🖥️ **Cross-platform compatibility**
+    - 🔒 **Privacy-focused** (all processing happens locally)
     
     **Supported COSMED Systems**:
     - Quark CPET
-    - K5 series
+    - K5 series  
     - Fitmate Pro
+    - Omnia
     - And other COSMED systems that export XML data
     
-    **Developer**: Built for healthcare professionals and researchers working with cardiopulmonary exercise testing data.
+    **Technical Details**:
+    - Built with Streamlit for the web interface
+    - Uses pandas and openpyxl for Excel generation
+    - Modular architecture for easy maintenance
+    - Comprehensive error handling and logging
+    
+    **Developer**: Built for healthcare professionals, researchers, and clinicians working with cardiopulmonary exercise testing data.
+    """)
+    
+    st.success("""
+    🔬 **Perfect for Research**: Custom parameter selection makes it easy to create focused datasets for:
+    - Metabolic studies (VO2, VCO2, RQ parameters)
+    - Cardiovascular research (HR, blood pressure data)  
+    - Exercise physiology (MFO, AT, RC, Max phases)
+    - Clinical assessments (key diagnostic parameters)
     """)
 
 def create_footer():
