@@ -17,7 +17,7 @@ class AdvancedCosmedGUI:
         ctk.set_default_color_theme("blue")
         
         # Create main window
-        self.window = ctk.CTk()
+        self.window: ctk.CTk = ctk.CTk()
         self.window.title("COSMED XML Data Converter")
         self.window.geometry("1000x800")
         self.window.minsize(900, 700)
@@ -27,18 +27,18 @@ class AdvancedCosmedGUI:
         self.window.grid_rowconfigure(0, weight=1)
         
         # Variables
-        self.input_folder = ctk.StringVar()
-        self.output_file = ctk.StringVar()
-        self.export_type = ctk.StringVar(value="selected")
-        self.progress_var = ctk.DoubleVar()
-        self.status_var = ctk.StringVar(value="Ready to process XML files")
-        self.xml_files = []
-        self.processing = False
+        self.input_folder: ctk.StringVar = ctk.StringVar()
+        self.output_file: ctk.StringVar = ctk.StringVar()
+        self.export_type: ctk.StringVar = ctk.StringVar(value="selected")
+        self.progress_var: ctk.DoubleVar = ctk.DoubleVar()
+        self.status_var: ctk.StringVar = ctk.StringVar(value="Ready to process XML files")
+        self.xml_files: list = []
+        self.processing: bool = False
         
         # Custom parameters variables
-        self.available_parameters = []  # Will be populated after scanning
-        self.custom_parameters = {}  # Dictionary: {param_name: [phases]}
-        self.available_phases = ['Value', 'Rest', 'Warmup', 'MFO', 'AT', 'RC', 'Max', 'Pred', 'PercPred', 'Normal', 'Class']
+        self.available_parameters: list = []  # Will be populated after scanning
+        self.custom_parameters: dict = {}  # Dictionary: {param_name: [phases]}
+        self.available_phases: list = ['Value', 'Rest', 'Warmup', 'MFO', 'AT', 'RC', 'Max', 'Pred', 'PercPred', 'Normal', 'Class']
         
         # Create UI
         self.create_widgets()
@@ -832,8 +832,8 @@ class AdvancedCosmedGUI:
             
         except Exception as e:
             error_msg = f"❌ Processing Error\n\nAn error occurred during processing:\n\n{str(e)}"
-            self.window.after(0, lambda: messagebox.showerror("Error", error_msg))
-            self.window.after(0, lambda: self.status_var.set("❌ Processing failed"))
+            self.window.after(0, messagebox.showerror("Error", error_msg))
+            self.window.after(0, self.status_var.set("❌ Processing failed"))
             
         finally:
             # Reset UI
