@@ -3,7 +3,17 @@ import os
 import tempfile
 import pandas as pd
 
-from modules import XmlDataReader, ExcelExporter
+from modules import XmlDataReader, ExcelExporter, CSSLoader
+
+# CSS Loading function (embedded for simplicity)
+def load_css():
+    """Load external CSS file"""
+    try:
+        css_path = os.path.join(os.path.dirname(__file__), 'assets', 'styles.css')
+        CSSLoader.load_css(css_path)
+    except Exception as e:
+        st.error(f"Could not load CSS: {e}")
+
 
 def select_key_parameters():
     """Select the standard 15 key parameters with appropriate phases"""
@@ -68,40 +78,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
-st.markdown("""
-<style>
-    .main-header {
-        text-align: center;
-        padding: 2rem 0;
-        background: linear-gradient(90deg, #1f77b4, #17becf);
-        color: white;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-    }
-    .upload-box {
-        border: 2px dashed #cccccc;
-        border-radius: 10px;
-        padding: 2rem;
-        text-align: center;
-        margin: 1rem 0;
-    }
-    .success-box {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        border-radius: 5px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    .error-box {
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        border-radius: 5px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Load CSS styles
+load_css()
 
 # Initialize session state
 if 'processed_data' not in st.session_state:
@@ -118,10 +96,12 @@ if 'uploaded_files_data' not in st.session_state:
 def main():
     # Header
     st.markdown("""
-    <div class="main-header">
-        <h1>🫁 COSMED XML Data Converter</h1>
-        <p>Convert COSMED cardiopulmonary exercise test data from XML to Excel</p>
-    </div>
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <h1 style="font-size: 3.5rem; margin-bottom: 0.5rem;">🫁 COSMED XML Converter</h1>
+            <p style="font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 2rem;">
+                Professional cardiopulmonary exercise test data conversion tool
+            </p>
+        </div>
     """, unsafe_allow_html=True)
 
     # Sidebar configuration
@@ -320,10 +300,8 @@ def create_sidebar():
 
 def create_main_content():
     """Create main content area"""
-    
-    # File upload section
-    st.header("📁 Upload XML Files")
-    
+    st.header("📁 File Upload & Processing")
+
     uploaded_files = st.file_uploader(
         "Choose COSMED XML files",
         type=['xml'],
@@ -433,7 +411,7 @@ def process_files(uploaded_files):
                         f.write(file.read())
                     xml_paths.append(file_path)
                 
-                status_text.text("🔍 Reading XML data...")
+                status_text.markdown('<p class="loading-text">🔍 Extracting data from XML files...</p>', unsafe_allow_html=True)
                 progress_bar.progress(0.4)
                 
                 # Process files using existing classes
@@ -442,8 +420,8 @@ def process_files(uploaded_files):
                 
                 if extracted_data:
                     progress_bar.progress(0.7)
-                    status_text.text(f"📊 Processing {len(extracted_data)} records...")
-                    
+                    status_text.markdown(f'<p class="loading-text">📊 Processing {len(extracted_data)} records...</p>', unsafe_allow_html=True)
+
                     # Create Excel file
                     export_type = st.session_state.export_type
                     
@@ -473,7 +451,7 @@ def process_files(uploaded_files):
                             return
                     
                     progress_bar.progress(0.9)
-                    status_text.text("📝 Preparing download...")
+                    status_text.markdown('<p class="loading-text">📦 Finalizing export...</p>', unsafe_allow_html=True)
                     
                     # Read the created Excel file
                     with open(output_path, "rb") as excel_file:
@@ -513,8 +491,11 @@ def process_files(uploaded_files):
 
 def show_results():
     """Display processing results and download options"""
-    
-    st.header("📊 Processing Results")
+    st.markdown("""
+        <div class="custom-card">
+            <h2 style="margin-top: 0;">📊 Processing Results</h2>
+        </div>
+    """, unsafe_allow_html=True)
     
     data = st.session_state.processed_data
     

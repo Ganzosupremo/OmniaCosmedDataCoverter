@@ -8,7 +8,10 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 class ExcelExporter:
-    """Excel export functionality for COSMED data"""
+    """
+    Excel export functionality for COSMED data
+    Simplified version for web deployment
+    """
     
     # Standard selected parameters for COSMED analysis (15 key parameters)
     SELECTED_PARAMETERS = [

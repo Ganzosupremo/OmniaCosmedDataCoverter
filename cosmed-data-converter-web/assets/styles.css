@@ -1,0 +1,282 @@
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Global theme variables - Sync with config.toml */
+:root {
+    --primary-color: #3b82f6;
+    --accent-color: #60a5fa;
+    --background-dark: #0f172a;
+    --background-medium: #1e293b;
+    --background-light: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --error-color: #ef4444;
+    --border-color: #475569;
+}
+
+/* Override font family for the entire app */
+.stApp {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Enhanced main title styling */
+h1 {
+    background: linear-gradient(45deg, var(--primary-color), var(--accent-color)) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    font-size: 3rem !important;
+    text-align: center !important;
+    margin-bottom: 2rem !important;
+    text-shadow: 0 4px 8px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Enhanced subtitle styling */
+.main-subtitle {
+    color: var(--text-secondary) !important;
+    font-size: 1.2rem !important;
+    text-align: center !important;
+    margin-bottom: 2rem !important;
+    opacity: 0.9;
+}
+
+/* Custom cards with glassmorphism effect */
+.custom-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(51, 65, 85, 0.6) 100%) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    padding: 1.5rem !important;
+    margin: 1rem 0 !important;
+    backdrop-filter: blur(10px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Enhanced button hover effects */
+.stButton > button {
+    transition: all 0.3s ease !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4) !important;
+}
+
+/* Shimmer effect for buttons */
+.stButton > button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s;
+}
+
+.stButton > button:hover::before {
+    left: 100%;
+}
+
+/* Enhanced download button */
+.stDownloadButton > button {
+    background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 2rem !important;
+    font-weight: 600 !important;
+    font-size: 1.1rem !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3) !important;
+    width: 100% !important;
+    margin: 1rem 0 !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.stDownloadButton > button:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4) !important;
+}
+
+.stDownloadButton > button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s;
+}
+
+.stDownloadButton > button:hover::before {
+    left: 100%;
+}
+
+/* Enhanced metrics styling */
+[data-testid="metric-container"] {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(96, 165, 250, 0.1) 100%) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    padding: 1rem !important;
+    backdrop-filter: blur(5px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.3s ease !important;
+}
+
+[data-testid="metric-container"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Custom loading animation */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.loading-text {
+    animation: pulse 1.5s infinite !important;
+    color: var(--accent-color) !important;
+    font-weight: 500 !important;
+}
+
+/* Enhanced expander styling */
+div[data-testid="stExpander"] > div:first-child {
+    background: rgba(51, 65, 85, 0.5) !important;
+    border-radius: 8px !important;
+    border: 1px solid var(--border-color) !important;
+    transition: all 0.3s ease !important;
+}
+
+div[data-testid="stExpander"] > div:first-child:hover {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-color: var(--primary-color) !important;
+}
+
+div[data-testid="stExpander"] > div:last-child {
+    background: rgba(30, 41, 59, 0.3) !important;
+    border-radius: 8px !important;
+    border: 1px solid var(--border-color) !important;
+    margin-top: 0.5rem !important;
+}
+
+/* Enhanced file uploader styling */
+section[data-testid="stFileUploader"],
+div[data-testid="stFileUploader"] {
+    background: rgba(51, 65, 85, 0.5) !important;
+    border: 2px dashed var(--accent-color) !important;
+    border-radius: 12px !important;
+    padding: 2rem !important;
+    text-align: center !important;
+    transition: all 0.3s ease !important;
+}
+
+section[data-testid="stFileUploader"]:hover,
+div[data-testid="stFileUploader"]:hover {
+    border-color: var(--primary-color) !important;
+    background: rgba(59, 130, 246, 0.1) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* Enhanced progress bar */
+.stProgress > div > div {
+    background: linear-gradient(90deg, var(--primary-color) 0%, var(--accent-color) 100%) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Alert message enhancements */
+.stSuccess {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%) !important;
+    border: 1px solid var(--success-color) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2) !important;
+}
+
+.stError {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%) !important;
+    border: 1px solid var(--error-color) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2) !important;
+}
+
+.stWarning {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%) !important;
+    border: 1px solid var(--warning-color) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2) !important;
+}
+
+.stInfo {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%) !important;
+    border: 1px solid var(--primary-color) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Enhanced scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--background-medium);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, var(--accent-color) 0%, var(--primary-color) 100%);
+}
+
+/* Footer styling */
+.footer {
+    background: rgba(15, 23, 42, 0.9) !important;
+    border-top: 1px solid var(--border-color) !important;
+    padding: 2rem 0 !important;
+    margin-top: 3rem !important;
+    text-align: center !important;
+    color: var(--text-secondary) !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 2rem !important;
+    }
+    
+    .custom-card {
+        margin: 0.5rem 0 !important;
+        padding: 1rem !important;
+    }
+}
+
+/* Subtle animation for page load */
+.main {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
