@@ -9,4 +9,4 @@ from .core import ExcelExporter
 from .core import XmlDataReader
 from .utils import CSSLoader
 
-__all__ = ["ExcelExporter", "XmlDataReader", "CSSLoader"]
+__all__ = ['ExcelExporter', 'XmlDataReader', 'CSSLoader']

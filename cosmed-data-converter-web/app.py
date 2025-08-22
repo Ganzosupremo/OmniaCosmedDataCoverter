@@ -3,7 +3,7 @@ import os
 import tempfile
 import pandas as pd
 
-from .modules import XmlDataReader, ExcelExporter, CSSLoader
+from web_modules import XmlDataReader, ExcelExporter, CSSLoader
 
 # CSS Loading function (embedded for simplicity)
 def load_css():
