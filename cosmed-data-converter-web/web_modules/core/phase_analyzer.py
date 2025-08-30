@@ -3,11 +3,8 @@ Phase Analyzer for COSMED data
 Analyzes exercise phases and calculates statistics
 """
 import pandas as pd
-import numpy as np
 from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
-import os
-import tempfile
 import io
 import re
 from pathlib import Path
@@ -398,29 +395,34 @@ class PhaseAnalyzer:
                 'errors': self.errors
             }
     
-    def analyze_batch_files(self, files: List[Any], file_names: List[str]) -> Dict[str, Any]:
+    def analyze_batch_files(self, files: List[Any], file_names: List[str], selected_parameters: Optional[List[str]] = None) -> Dict[str, Any]:
         """
-        Analyze multiple files in batch
+        NEW SPEC: Analyze multiple files in batch mode
+        Each file = one test subject, output has subjects as rows and Phase_Parameter as columns
+        
         Args:
-            files: List of file objects (BytesIO or similar)
+            files: List of file objects (BytesIO or similar) 
             file_names: List of corresponding file names
+            selected_parameters: Optional list of parameters to include in analysis
         Returns:
-            Dictionary with batch analysis results
+            Dictionary with batch analysis results in new format
         """
         batch_results = {
             'success': True,
             'files_processed': 0,
             'total_files': len(files),
             'file_results': {},
-            'combined_statistics': None,
+            'batch_statistics': None,
             'warnings': [],
             'errors': []
         }
         
-        all_dataframes = []
-        successful_files = []
+        # Store individual subject results
+        subject_results = {}
+        all_phases = set()
+        all_parameters = set()
         
-        # Process each file
+        # Process each file as a separate subject
         for i, (file, filename) in enumerate(zip(files, file_names)):
             try:
                 # Reset file pointer
@@ -432,19 +434,26 @@ class PhaseAnalyzer:
                 else:
                     df = pd.read_excel(file)
                 
-                # Add filename column to identify source
-                df['Source_File'] = filename
-                
                 # Analyze individual file
-                file_result = self.analyze_dataframe(df.drop('Source_File', axis=1))
+                file_result = self.analyze_dataframe(df)
                 
                 if file_result['success']:
                     batch_results['files_processed'] += 1
                     batch_results['file_results'][filename] = file_result
                     
-                    # Add to combined dataset
-                    all_dataframes.append(df)
-                    successful_files.append(filename)
+                    # Extract subject name (filename without extension)
+                    subject_name = Path(filename).stem
+                    
+                    # Store subject's phase statistics
+                    subject_results[subject_name] = {
+                        'average': file_result['statistics']['average'],
+                        'stddev': file_result['statistics']['stddev'],
+                        'max': file_result['statistics']['max']
+                    }
+                    
+                    # Track all phases and parameters across subjects
+                    all_phases.update(file_result['phases'])
+                    all_parameters.update(file_result['parameters'])
                     
                 else:
                     batch_results['warnings'].append(f"Failed to analyze {filename}: {file_result.get('error', 'Unknown error')}")
@@ -458,22 +467,24 @@ class PhaseAnalyzer:
                     'error': str(e)
                 }
         
-        # If we have successful files, create combined analysis
-        if all_dataframes:
+        # Create batch statistics if we have successful subjects
+        if subject_results:
             try:
-                # Combine all dataframes
-                combined_df = pd.concat(all_dataframes, ignore_index=True)
-                
-                # Analyze combined dataset
-                combined_result = self.analyze_dataframe(combined_df.drop('Source_File', axis=1))
-                
-                if combined_result['success']:
-                    batch_results['combined_statistics'] = combined_result
+                # Filter parameters if specified
+                if selected_parameters:
+                    parameters_to_use = [p for p in selected_parameters if p in all_parameters]
+                    if not parameters_to_use:
+                        batch_results['warnings'].append("None of the selected parameters were found in the data. Using all available parameters.")
+                        parameters_to_use = list(all_parameters)
                 else:
-                    batch_results['warnings'].append(f"Failed to create combined analysis: {combined_result.get('error', 'Unknown error')}")
-                    
+                    parameters_to_use = list(all_parameters)
+                
+                # Create flattened batch statistics according to spec
+                batch_stats = self._create_batch_statistics(subject_results, list(all_phases), parameters_to_use)
+                batch_results['batch_statistics'] = batch_stats
+                
             except Exception as e:
-                batch_results['warnings'].append(f"Error combining datasets: {str(e)}")
+                batch_results['warnings'].append(f"Error creating batch statistics: {str(e)}")
         
         # Update success status
         if batch_results['files_processed'] == 0:
@@ -482,37 +493,86 @@ class PhaseAnalyzer:
         
         return batch_results
     
+    def _create_batch_statistics(self, subject_results: Dict[str, Dict], all_phases: List[str], parameters: List[str]) -> Dict[str, Any]:
+        """
+        Create batch statistics according to NEW SPEC:
+        - Rows = subjects  
+        - Columns = Phase_Parameter
+        - Three sheets: Average, StdDev, Max
+        """
+        results_avg, results_std, results_max = [], [], []
+        
+        for subject_name, stats in subject_results.items():
+            # Initialize rows for this subject
+            row_avg = {"Subject": subject_name}
+            row_std = {"Subject": subject_name}
+            row_max = {"Subject": subject_name}
+            
+            # Process each phase in the subject's data
+            for phase in stats['average'].index:
+                for param in parameters:
+                    col_name = f"{phase}_{param}"
+                    
+                    # Get values, defaulting to NaN if missing
+                    row_avg[col_name] = stats['average'].at[phase, param] if param in stats['average'].columns else float('nan')
+                    row_std[col_name] = stats['stddev'].at[phase, param] if param in stats['stddev'].columns else float('nan')
+                    row_max[col_name] = stats['max'].at[phase, param] if param in stats['max'].columns else float('nan')
+            
+            # For phases not present in this subject, fill with NaN
+            for phase in all_phases:
+                if phase not in stats['average'].index:
+                    for param in parameters:
+                        col_name = f"{phase}_{param}"
+                        if col_name not in row_avg:
+                            row_avg[col_name] = float('nan')
+                            row_std[col_name] = float('nan')
+                            row_max[col_name] = float('nan')
+            
+            results_avg.append(row_avg)
+            results_std.append(row_std)
+            results_max.append(row_max)
+        
+        # Convert to DataFrames
+        final_avg = pd.DataFrame(results_avg)
+        final_std = pd.DataFrame(results_std)
+        final_max = pd.DataFrame(results_max)
+        
+        return {
+            'success': True,
+            'average': final_avg,
+            'stddev': final_std,
+            'max': final_max,
+            'subjects': len(subject_results),
+            'phases': all_phases,
+            'parameters': parameters
+        }
+    
     def export_batch_statistics_to_bytes(self, batch_results: Dict[str, Any]) -> bytes:
         """
-        Export batch statistics to Excel bytes with multiple sheets
+        NEW SPEC: Export batch statistics to Excel bytes with 3 sheets:
+        Average, StdDev, Max (subjects as rows, Phase_Parameter as columns)
         """
         output = io.BytesIO()
         
         try:
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 
-                # Combined statistics (if available)
-                if batch_results['combined_statistics'] and batch_results['combined_statistics']['success']:
-                    combined_stats = batch_results['combined_statistics']['statistics']
-                    combined_stats['average'].to_excel(writer, sheet_name='Combined_Average', index=True)
-                    combined_stats['stddev'].to_excel(writer, sheet_name='Combined_StdDev', index=True)
-                    combined_stats['max'].to_excel(writer, sheet_name='Combined_Max', index=True)
+                # NEW SPEC: Export the 3 main sheets with subjects as rows
+                if batch_results['batch_statistics'] and batch_results['batch_statistics']['success']:
+                    batch_stats = batch_results['batch_statistics']
+                    
+                    # Main sheets according to specification
+                    batch_stats['average'].to_excel(writer, sheet_name='Average', index=False)
+                    batch_stats['stddev'].to_excel(writer, sheet_name='StdDev', index=False)  
+                    batch_stats['max'].to_excel(writer, sheet_name='Max', index=False)
                 
-                # Individual file statistics
-                for filename, result in batch_results['file_results'].items():
-                    if result['success']:
-                        safe_filename = filename.replace('.', '_').replace(' ', '_')[:25]  # Excel sheet name limitations
-                        
-                        stats = result['statistics']
-                        stats['average'].to_excel(writer, sheet_name=f'{safe_filename}_Avg', index=True)
-                        stats['stddev'].to_excel(writer, sheet_name=f'{safe_filename}_Std', index=True)
-                        stats['max'].to_excel(writer, sheet_name=f'{safe_filename}_Max', index=True)
-                
-                # Summary sheet
+                # Processing summary sheet
                 summary_data = []
                 for filename, result in batch_results['file_results'].items():
+                    subject_name = Path(filename).stem
                     if result['success']:
                         summary_data.append({
+                            'Subject': subject_name,
                             'Filename': filename,
                             'Status': 'Success',
                             'Rows_Processed': result.get('processed_rows', 0),
@@ -521,6 +581,7 @@ class PhaseAnalyzer:
                         })
                     else:
                         summary_data.append({
+                            'Subject': subject_name,
                             'Filename': filename,
                             'Status': 'Failed',
                             'Error': result.get('error', 'Unknown error'),
