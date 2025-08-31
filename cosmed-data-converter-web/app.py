@@ -2,8 +2,9 @@ import streamlit as st
 import os
 import tempfile
 import pandas as pd
+from typing import Optional, List
 
-from .modules import XmlDataReader, ExcelExporter, CSSLoader
+from web_modules import XmlDataReader, ExcelExporter, CSSLoader, PhaseAnalyzer
 
 # CSS Loading function (embedded for simplicity)
 def load_css():
@@ -104,11 +105,19 @@ def main():
         </div>
     """, unsafe_allow_html=True)
 
-    # Sidebar configuration
-    create_sidebar()
+    # Create tabs for different functionalities
+    tab1, tab2 = st.tabs(["🔄 XML Converter", "📊 Phase Statistics"])
     
-    # Main content
-    create_main_content()
+    with tab1:
+        # Sidebar configuration for XML converter
+        create_sidebar()
+        
+        # Main content for XML conversion
+        create_main_content()
+    
+    with tab2:
+        # Phase statistics analyzer
+        create_phase_analyzer_content()
     
     # Footer
     create_footer()
@@ -629,7 +638,7 @@ def show_about_dialog():
     st.info("""
     ## ℹ️ About COSMED XML Converter
     
-    **Version**: 2.1 (Streamlit Web Edition with Custom Parameters)
+    **Version**: 2.2 (Streamlit Web Edition with Custom Parameters & Batch Analysis)
     
     **Purpose**: Convert COSMED cardiopulmonary exercise test data from XML format to Excel spreadsheets for easier analysis and reporting.
     
@@ -639,6 +648,8 @@ def show_about_dialog():
     - 📊 **Data Preview**: See your data before downloading
     - ⚡ **Quick Presets**: "Key 15" selection for standard clinical parameters
     - 🧠 **Intelligent Phases**: VO2/kg automatically includes MFO, AT, RC, and Max phases
+    - 📚 **Batch Phase Analysis**: Upload and analyze multiple data files simultaneously
+    - 🔗 **Combined Analysis**: Merge multiple datasets for comprehensive statistics
     
     **Core Features**:
     - 🌐 **Web-based interface** (no installation required)
@@ -647,6 +658,7 @@ def show_about_dialog():
     - ✅ **Automatic data validation**
     - 🖥️ **Cross-platform compatibility**
     - 🔒 **Privacy-focused** (all processing happens locally)
+    - 📈 **Phase Statistics Analysis** (single file or batch processing)
     
     **Supported COSMED Systems**:
     - Quark CPET
@@ -671,6 +683,769 @@ def show_about_dialog():
     - Exercise physiology (MFO, AT, RC, Max phases)
     - Clinical assessments (key diagnostic parameters)
     """)
+
+def create_phase_analyzer_content():
+    """Create content for phase statistics analyzer"""
+    st.markdown("""
+        <div class="custom-card">
+            <h2>📊 Phase Statistics Analyzer</h2>
+            <p>Analyze exercise phase data and calculate comprehensive statistics (mean, standard deviation, max) for each phase occurrence.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Initialize session state for phase analyzer
+    if 'phase_analysis_results' not in st.session_state:
+        st.session_state.phase_analysis_results = None
+    if 'batch_analysis_results' not in st.session_state:
+        st.session_state.batch_analysis_results = None
+    
+    # Upload mode selection
+    st.subheader("📁 Upload Mode")
+    
+    upload_mode = st.radio(
+        "Choose upload mode:",
+        ["single", "batch"],
+        format_func=lambda x: {
+            "single": "📄 Single File Analysis",
+            "batch": "📚 Batch File Analysis"
+        }[x],
+        help="Single file: Analyze one file at a time. Batch: Upload and analyze multiple files together.",
+        horizontal=True
+    )
+    
+    if upload_mode == "single":
+        create_single_file_analyzer()
+    else:
+        create_batch_file_analyzer()
+
+def create_single_file_analyzer():
+    """Create single file analyzer interface"""
+    # File upload section
+    st.subheader("📁 Upload Data File")
+    
+    uploaded_file = st.file_uploader(
+        "Choose a data file (Excel or CSV)",
+        type=['xlsx', 'xls', 'csv'],
+        help="Upload an Excel or CSV file with a 'Phase' column and numeric data columns",
+        key="phase_analyzer_upload"
+    )
+    
+    if uploaded_file is not None:
+        # Display file info
+        st.success(f"✅ File uploaded: **{uploaded_file.name}**")
+        
+        # Preview the data
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                preview_df = pd.read_csv(uploaded_file, nrows=5)
+            else:
+                preview_df = pd.read_excel(uploaded_file, nrows=5)
+            
+            with st.expander("👁️ Data Preview (First 5 rows)", expanded=False):
+                st.dataframe(preview_df, use_container_width=True)
+                st.info(f"📊 Columns detected: {list(preview_df.columns)}")
+                
+                # Check for Phase column
+                if 'Phase' in preview_df.columns:
+                    st.success("✅ 'Phase' column detected")
+                    unique_phases = preview_df['Phase'].dropna().unique()
+                    if len(unique_phases) > 0:
+                        st.info(f"🔍 Sample phases found: {', '.join(map(str, unique_phases[:5]))}")
+                else:
+                    st.warning("⚠️ No 'Phase' column found. Please ensure your data has a column named 'Phase'.")
+            
+        except Exception as e:
+            st.error(f"❌ Error previewing file: {str(e)}")
+        
+        # Analysis settings
+        st.subheader("⚙️ Analysis Settings")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            include_warnings = st.checkbox(
+                "Show warnings", 
+                value=True,
+                help="Display warnings about data processing issues"
+            )
+        
+        with col2:
+            show_phase_details = st.checkbox(
+                "Show phase details", 
+                value=True,
+                help="Display detailed information about detected phases"
+            )
+        
+        # Process button
+        if st.button("🔬 Analyze Phase Statistics", type="primary", use_container_width=True):
+            analyze_phase_data(uploaded_file, include_warnings, show_phase_details)
+    
+    # Results section
+    if st.session_state.phase_analysis_results is not None:
+        display_phase_analysis_results()
+
+def create_batch_file_analyzer():
+    """Create batch file analyzer interface"""
+    # File upload section
+    st.subheader("📚 Upload Multiple Data Files")
+    
+    uploaded_files = st.file_uploader(
+        "Choose data files (Excel or CSV)",
+        type=['xlsx', 'xls', 'csv'],
+        accept_multiple_files=True,
+        help="Upload multiple Excel or CSV files with 'Phase' columns and numeric data columns",
+        key="batch_phase_analyzer_upload"
+    )
+    
+    if uploaded_files:
+        st.success(f"✅ {len(uploaded_files)} files uploaded")
+        
+        # Display uploaded files
+        with st.expander(f"📄 Uploaded Files ({len(uploaded_files)})", expanded=False):
+            for i, file in enumerate(uploaded_files, 1):
+                file_size = len(file.read()) / 1024  # KB
+                file.seek(0)  # Reset file pointer
+                st.write(f"{i}. **{file.name}** ({file_size:.1f} KB)")
+        
+        # Batch preview
+        st.subheader("👁️ Batch Preview")
+        
+        # Show preview of first few files
+        preview_files = uploaded_files[:3]  # Preview first 3 files
+        
+        for i, file in enumerate(preview_files):
+            try:
+                file.seek(0)
+                
+                if file.name.endswith('.csv'):
+                    preview_df = pd.read_csv(file, nrows=3)
+                else:
+                    preview_df = pd.read_excel(file, nrows=3)
+                
+                file.seek(0)  # Reset for later processing
+                
+                with st.expander(f"📊 Preview: {file.name}", expanded=False):
+                    st.dataframe(preview_df, use_container_width=True)
+                    
+                    # Check for Phase column
+                    if 'Phase' in preview_df.columns:
+                        st.success("✅ 'Phase' column detected")
+                        unique_phases = preview_df['Phase'].dropna().unique()
+                        if len(unique_phases) > 0:
+                            st.info(f"🔍 Sample phases: {', '.join(map(str, unique_phases))}")
+                    else:
+                        st.warning("⚠️ No 'Phase' column found in this file")
+                        
+            except Exception as e:
+                st.error(f"❌ Error previewing {file.name}: {str(e)}")
+        
+        if len(uploaded_files) > 3:
+            st.info(f"📋 Showing preview for first 3 files. {len(uploaded_files) - 3} additional files will be processed.")
+        
+        # Batch analysis settings
+        st.subheader("⚙️ Batch Analysis Settings")
+        
+        # Parameter selection section
+        st.write("**Parameter Selection:**")
+        
+        # First scan files to get available parameters
+        available_params = scan_parameters_from_files(uploaded_files)
+        
+        if available_params:
+            # Parameter selection method
+            param_selection_method = st.radio(
+                "Choose parameter selection method:",
+                ["all", "custom"],
+                format_func=lambda x: {
+                    "all": "📊 All Available Parameters",
+                    "custom": "🎯 Custom Parameter Selection"
+                }[x],
+                help="Select whether to use all parameters or choose specific ones",
+                horizontal=True,
+                key="batch_param_method"
+            )
+            
+            selected_parameters = None
+            if param_selection_method == "custom":
+                selected_parameters = st.multiselect(
+                    "Select parameters for analysis:",
+                    options=available_params,
+                    default=available_params[:10] if len(available_params) > 10 else available_params,
+                    help="Choose specific parameters to include in batch analysis",
+                    key="batch_param_selection"
+                )
+                
+                if not selected_parameters:
+                    st.warning("⚠️ No parameters selected. All available parameters will be used.")
+                    selected_parameters = None
+        else:
+            st.warning("⚠️ Could not detect parameters from uploaded files. All detected parameters will be used during processing.")
+            selected_parameters = None
+        
+        # Additional settings
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            include_warnings = st.checkbox(
+                "Show processing warnings", 
+                value=True,
+                help="Display warnings about data processing issues",
+                key="batch_warnings"
+            )
+        
+        with col2:
+            show_individual_results = st.checkbox(
+                "Show individual file results", 
+                value=False,
+                help="Display detailed results for each file processed",
+                key="batch_individual"
+            )
+        
+        # Process button
+        if st.button("🔬 Analyze Batch Phase Statistics", type="primary", use_container_width=True):
+            analyze_batch_phase_data(uploaded_files, include_warnings, show_individual_results, selected_parameters)
+    
+    # Batch results section
+    if st.session_state.batch_analysis_results is not None:
+        display_batch_analysis_results()
+
+def analyze_batch_phase_data(uploaded_files, include_warnings: bool, show_individual_results: bool, selected_parameters: Optional[List[str]]):
+    """NEW SPEC: Analyze multiple uploaded files for batch phase statistics"""
+    
+    try:
+        with st.spinner("🔄 Analyzing batch phase statistics..."):
+            # Create progress bar
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Prepare file list
+            file_names = [f.name for f in uploaded_files]
+            
+            # Reset file pointers
+            for file in uploaded_files:
+                file.seek(0)
+            
+            status_text.text(f"🔍 Processing {len(uploaded_files)} files as individual subjects...")
+            progress_bar.progress(0.1)
+            
+            # Create phase analyzer instance
+            analyzer = PhaseAnalyzer()
+            
+            # NEW SPEC: Analyze batch with subject-based processing
+            batch_results = analyzer.analyze_batch_files(uploaded_files, file_names, selected_parameters)
+            
+            progress_bar.progress(0.9)
+            status_text.text("✅ Batch analysis completed!")
+            
+            # Store results in session state
+            st.session_state.batch_analysis_results = batch_results
+            
+            # Clear progress indicators
+            progress_bar.progress(1.0)
+            progress_bar.empty()
+            status_text.empty()
+            
+            # Show summary
+            if batch_results['success']:
+                if batch_results.get('batch_statistics') and batch_results['batch_statistics']['success']:
+                    subjects_count = batch_results['batch_statistics']['subjects']
+                    st.success(f"🎉 Successfully processed {batch_results['files_processed']} subjects with {subjects_count} subjects in final dataset!")
+                else:
+                    st.success(f"🎉 Successfully processed {batch_results['files_processed']} out of {batch_results['total_files']} files!")
+            else:
+                st.error("❌ Batch analysis failed")
+                
+            # Show warnings if requested
+            if include_warnings and batch_results['warnings']:
+                st.warning("⚠️ **Processing Warnings:**")
+                for warning in batch_results['warnings']:
+                    st.warning(f"• {warning}")
+            
+            st.rerun()  # Refresh to show results
+            
+    except Exception as e:
+        st.error(f"❌ Error during batch analysis: {str(e)}")
+        st.exception(e)  # For debugging
+
+def display_batch_analysis_results():
+    """NEW SPEC: Display batch phase analysis results with subject-based format"""
+    batch_results = st.session_state.batch_analysis_results
+    
+    st.markdown("---")
+    st.subheader("📊 Batch Analysis Results")
+    
+    # Results summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            label="Files Processed",
+            value=f"{batch_results['files_processed']}/{batch_results['total_files']}",
+            delta="subjects"
+        )
+    
+    with col2:
+        batch_available = batch_results.get('batch_statistics') and batch_results['batch_statistics']['success']
+        st.metric(
+            label="Batch Dataset",
+            value="✅ Available" if batch_available else "❌ Not Available",
+            delta="flattened"
+        )
+    
+    with col3:
+        successful_count = len([r for r in batch_results['file_results'].values() if r['success']])
+        st.metric(
+            label="Successful Subjects",
+            value=successful_count,
+            delta="analyzed"
+        )
+    
+    with col4:
+        st.metric(
+            label="Export Ready",
+            value="✅ Ready",
+            delta="3 sheets"
+        )
+    
+    # File processing summary
+    st.subheader("📋 Subject Processing Summary")
+    
+    # Create summary table
+    summary_data = []
+    for filename, result in batch_results['file_results'].items():
+        subject_name = filename.split('.')[0] if '.' in filename else filename
+        if result['success']:
+            summary_data.append({
+                'Subject': subject_name,
+                'File': filename,
+                'Status': '✅ Success',
+                'Rows Processed': f"{result.get('processed_rows', 0):,}",
+                'Phase Groups': result.get('phase_groups', 0),
+                'Numeric Columns': result.get('numeric_columns', 0)
+            })
+        else:
+            summary_data.append({
+                'Subject': subject_name,
+                'File': filename,
+                'Status': '❌ Failed',
+                'Rows Processed': '0',
+                'Phase Groups': '0',
+                'Numeric Columns': '0'
+            })
+    
+    if summary_data:
+        summary_df = pd.DataFrame(summary_data)
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+    
+    # NEW SPEC: Batch statistics preview (subjects as rows, Phase_Parameter as columns)
+    if batch_results.get('batch_statistics') and batch_results['batch_statistics']['success']:
+        st.subheader("📈 Batch Dataset Statistics (Subject-Based)")
+        
+        batch_stats = batch_results['batch_statistics']
+        
+        # Batch metrics
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                label="Total Subjects",
+                value=batch_stats['subjects'],
+                delta=f"{len(batch_stats['phases'])} phases"
+            )
+        
+        with col2:
+            st.metric(
+                label="Parameters Analyzed",
+                value=len(batch_stats['parameters']),
+                delta="numeric columns"
+            )
+        
+        with col3:
+            phase_param_combinations = len(batch_stats['phases']) * len(batch_stats['parameters'])
+            st.metric(
+                label="Phase×Parameter Combinations",
+                value=phase_param_combinations,
+                delta="data columns"
+            )
+        
+        # NEW SPEC: Preview the 3 main sheets with subjects as rows
+        stat_tab1, stat_tab2, stat_tab3 = st.tabs(["📊 Average Sheet", "📏 StdDev Sheet", "📈 Max Sheet"])
+        
+        with stat_tab1:
+            st.write("**Average Values (Rows = Subjects, Columns = Phase_Parameter):**")
+            avg_df = batch_stats['average']
+            st.dataframe(avg_df, use_container_width=True)
+        
+        with stat_tab2:
+            st.write("**Standard Deviation Values (Rows = Subjects, Columns = Phase_Parameter):**")
+            std_df = batch_stats['stddev']
+            st.dataframe(std_df, use_container_width=True)
+        
+        with stat_tab3:
+            st.write("**Maximum Values (Rows = Subjects, Columns = Phase_Parameter):**")
+            max_df = batch_stats['max']
+            st.dataframe(max_df, use_container_width=True)
+    
+    # Individual file results (if requested)
+    if st.checkbox("Show Individual Subject Results", value=False, help="Display detailed statistics for each successfully processed subject"):
+        st.subheader("� Individual Subject Results")
+        
+        for filename, result in batch_results['file_results'].items():
+            if result['success']:
+                subject_name = filename.split('.')[0] if '.' in filename else filename
+                with st.expander(f"📊 Subject: {subject_name} ({filename})", expanded=False):
+                    # Individual subject metrics
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.metric("Phase Groups", result['phase_groups'])
+                    
+                    with col2:
+                        st.metric("Rows Processed", f"{result.get('processed_rows', 0):,}")
+                    
+                    with col3:
+                        st.metric("Numeric Columns", result['numeric_columns'])
+                    
+                    # Individual subject statistics tabs
+                    sub_tab1, sub_tab2, sub_tab3 = st.tabs([f"📊 {subject_name} Avg", f"📏 {subject_name} Std", f"📈 {subject_name} Max"])
+                    
+                    with sub_tab1:
+                        if 'statistics' in result:
+                            st.dataframe(result['statistics']['average'], use_container_width=True)
+                        else:
+                            st.warning("No statistics available for this subject")
+                    
+                    with sub_tab2:
+                        if 'statistics' in result:
+                            st.dataframe(result['statistics']['stddev'], use_container_width=True)
+                        else:
+                            st.warning("No statistics available for this subject")
+                    
+                    with sub_tab3:
+                        if 'statistics' in result:
+                            st.dataframe(result['statistics']['max'], use_container_width=True)
+                        else:
+                            st.warning("No statistics available for this subject")
+    
+    # Export section
+    st.subheader("📥 Export Batch Results")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("""
+        **NEW FORMAT: Subject-Based Analysis**
+        - **Rows**: Each subject (one per file)
+        - **Columns**: Phase_Parameter combinations
+        - **Sheets**: Average, StdDev, Max values
+        - **Schema**: Consistent across all subjects (missing phases = NaN)
+        """)
+    
+    with col2:
+        # Generate filename with timestamp
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_batch_results.xlsx"
+        
+        if st.button("📊 Download Batch Results", type="primary", use_container_width=True):
+            try:
+                # Create phase analyzer for export
+                analyzer = PhaseAnalyzer()
+                excel_bytes = analyzer.export_batch_statistics_to_bytes(batch_results)
+                
+                st.download_button(
+                    label=f"💾 Save {filename}",
+                    data=excel_bytes,
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+                
+                st.success("✅ Export ready! Click the download button above.")
+                
+            except Exception as e:
+                st.error(f"❌ Error creating Excel file: {str(e)}")
+    
+    # Additional information about NEW SPEC batch analysis
+    with st.expander("ℹ️ About NEW Batch Analysis Format", expanded=False):
+        st.markdown("""
+        ### 📊 Batch Processing - Subject-Based Format
+        
+        **Key Changes:**
+        - Each uploaded file represents **one test subject**
+        - Subject name = filename (without extension)
+        - Final output has **subjects as rows**, **Phase_Parameter as columns**
+        
+        **Output Structure:**
+        - **3 Sheets**: Average, StdDev, Max
+        - **Consistent Schema**: All subjects have the same column structure
+        - **Missing Data**: If a subject lacks a phase, values = NaN
+        
+        **Example Column Names:**
+        - `EXERCISE 1_HR`, `EXERCISE 1_VO2`
+        - `RECOVERY 2_HR`, `RECOVERY 2_VO2`
+        - `WARMUP_Speed`, `WARMUP_Pace`
+        
+        **Use Cases:**
+        - **Multi-subject studies**: Compare statistics across participants
+        - **Research datasets**: Easy import into statistical software
+        - **Clinical analysis**: Side-by-side subject comparison
+        """)
+    
+    # Clear results button
+    if st.button("🗑️ Clear Batch Results", help="Clear current results to start a new analysis"):
+        st.session_state.batch_analysis_results = None
+        st.rerun()
+
+def analyze_phase_data(uploaded_file, include_warnings: bool, show_phase_details: bool):
+    """Analyze the uploaded file for phase statistics"""
+    
+    try:
+        with st.spinner("🔄 Analyzing phase statistics..."):
+            # Reset file pointer
+            uploaded_file.seek(0)
+            
+            # Read the file into DataFrame
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            # Create phase analyzer instance
+            analyzer = PhaseAnalyzer()
+            
+            # Analyze the DataFrame
+            results = analyzer.analyze_dataframe(df)
+            
+            if results['success']:
+                # Store results in session state
+                st.session_state.phase_analysis_results = results
+                
+            # Show success message
+            st.success("✅ Phase analysis completed successfully!")
+            
+            # Show processing info if applicable
+            if results.get('processed_rows') and results['processed_rows'] != results['input_rows']:
+                st.info(f"📋 **Processing Summary:**\n"
+                       f"- Original file rows: {results['input_rows']:,}\n"
+                       f"- Data rows processed: {results['processed_rows']:,}\n"
+                       f"- Structured format detected and handled")
+            
+            # Show warnings if requested
+            if include_warnings and results['warnings']:
+                st.warning("⚠️ **Processing Notes:**")
+                for warning in results['warnings']:
+                    st.warning(f"• {warning}")
+            
+            # Show phase details if requested
+            if show_phase_details:
+                st.info(f"""
+                📊 **Analysis Summary:**
+                - Input rows: {results['input_rows']:,}
+                - Data rows analyzed: {results.get('processed_rows', results['input_rows']):,}
+                - Numeric columns: {results['numeric_columns']}
+                - Phase groups identified: {results['phase_groups']}
+                """)
+                
+                if results['phases']:
+                    with st.expander("🔍 Detected Phase Groups", expanded=False):
+                        # Group phases by base name for better display
+                        phase_groups = {}
+                        for phase in results['phases']:
+                            if ' Set ' in phase:
+                                base = phase.split(' Set ')[0]
+                                if base not in phase_groups:
+                                    phase_groups[base] = []
+                                phase_groups[base].append(phase)
+                            else:
+                                if 'Other' not in phase_groups:
+                                    phase_groups['Other'] = []
+                                phase_groups['Other'].append(phase)
+                        
+                        for base_phase, phase_list in phase_groups.items():
+                            st.write(f"**{base_phase}**: {len(phase_list)} occurrences")
+                            if len(phase_list) <= 10:
+                                for phase in phase_list:
+                                    st.write(f"  • {phase}")
+                            else:
+                                for phase in phase_list[:5]:
+                                    st.write(f"  • {phase}")
+                                st.write(f"  ... and {len(phase_list)-5} more")
+                
+            else:
+                st.error(f"❌ Analysis failed: {results['error']}")
+                
+                if results['warnings']:
+                    st.warning("⚠️ **Warnings:**")
+                    for warning in results['warnings']:
+                        st.warning(f"• {warning}")
+                        
+    except Exception as e:
+        st.error(f"❌ Error during analysis: {str(e)}")
+
+def display_phase_analysis_results():
+    """Display the phase analysis results"""
+    results = st.session_state.phase_analysis_results
+    
+    st.markdown("---")
+    st.subheader("📊 Analysis Results")
+    
+    # Results summary metrics
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric(
+            label="Phase Groups",
+            value=results['phase_groups'],
+            delta=f"{results['input_rows']:,} total rows"
+        )
+    
+    with col2:
+        st.metric(
+            label="Parameters Analyzed", 
+            value=results['numeric_columns'],
+            delta="numeric columns"
+        )
+    
+    with col3:
+        file_size = "Ready for download"
+        st.metric(
+            label="Export Status",
+            value="✅ Ready",
+            delta=file_size
+        )
+    
+    # Statistics preview
+    st.subheader("📈 Statistics Preview")
+    
+    # Create tabs for different statistics
+    stat_tab1, stat_tab2, stat_tab3 = st.tabs(["📊 Average", "📏 Std Deviation", "📈 Maximum"])
+    
+    with stat_tab1:
+        st.write("**Average Values by Phase:**")
+        avg_df = results['statistics']['average']
+        st.dataframe(avg_df, use_container_width=True)
+    
+    with stat_tab2:
+        st.write("**Standard Deviation by Phase:**")
+        std_df = results['statistics']['stddev']
+        st.dataframe(std_df, use_container_width=True)
+    
+    with stat_tab3:
+        st.write("**Maximum Values by Phase:**")
+        max_df = results['statistics']['max']
+        st.dataframe(max_df, use_container_width=True)
+    
+    # Export section
+    st.subheader("📥 Export Results")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Generate Excel file for download
+        try:
+            analyzer = PhaseAnalyzer()
+            excel_bytes = analyzer.export_statistics_to_bytes(
+                results['statistics']['average'],
+                results['statistics']['stddev'],
+                results['statistics']['max']
+            )
+            
+            filename = "phase_statistics_analysis.xlsx"
+            
+            st.download_button(
+                label="📥 Download Excel Report",
+                data=excel_bytes,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                help="Download complete phase statistics in Excel format with separate sheets for Average, StdDev, and Max"
+            )
+            
+        except Exception as e:
+            st.error(f"❌ Error preparing download: {str(e)}")
+    
+    with col2:
+        if st.button("🔄 New Analysis", use_container_width=True):
+            st.session_state.phase_analysis_results = None
+            st.rerun()
+    
+    # Additional information
+    with st.expander("ℹ️ About Phase Statistics", expanded=False):
+        st.markdown("""
+        ### 📊 What This Analysis Provides:
+        
+        **Three Statistical Measures:**
+        - **Average**: Arithmetic mean of each parameter for each phase occurrence
+        - **Standard Deviation**: Sample standard deviation (using ddof=1) showing data spread
+        - **Maximum**: Peak values reached in each parameter for each phase occurrence
+        
+        **Phase Grouping Logic:**
+        - Phases are grouped by their base name (removing trailing "Set" and numbers)
+        - Each occurrence gets a "Set N" suffix (e.g., "Exercise Set 1", "Exercise Set 2")
+        - Preserves the original casing from your data
+        
+        **File Format Support:**
+        - **Simple Format**: Files with Phase column and numeric data
+        - **Structured Format**: Files with metadata columns before 't' column
+          - Automatically drops columns before 't' (preserving Phase if found)
+          - Skips units row and empty row
+          - Starts analysis from actual time-series data
+        
+        **Input Requirements:**
+        - Must contain a 'Phase' column (anywhere in the file)
+        - Numeric columns for statistical analysis
+        - Supports Excel (.xlsx, .xls) and CSV formats
+        
+        **Output Format:**
+        - Excel file with three sheets: `Average`, `StdDev`, `Max`
+        - Rows represent phase groups (with Set suffixes)
+        - Columns represent the numeric parameters from your data
+        - Missing or non-numeric values are handled as NaN
+        
+        **Use Cases:**
+        - Exercise physiology research (HIIT analysis, recovery studies)
+        - Clinical assessment of repeated exercise phases
+        - Performance analysis across multiple test sets
+        - Statistical comparison between different phase occurrences
+        - COSMED data analysis with structured export format
+        """)
+
+    # Format detection info
+    with st.expander("🔍 Supported File Formats", expanded=False):
+        st.markdown("""
+        ### 📁 File Format Detection:
+        
+        **Simple Format:**
+        ```
+        Phase,VO2,HR,VE,Speed
+        Exercise,25.5,120,45.2,8.0
+        Exercise,26.1,125,47.1,8.2
+        Rest,10.2,70,20.1,0.0
+        ```
+        
+        **Structured Format (COSMED exports):**
+        ```
+        Metadata1,Metadata2,...,t,Rf,VT,VE,...,Phase
+        units_row,units,...,s,1/min,L(btps),L/min,...,---
+        empty_row,empty,...,NaN,NaN,NaN,NaN,...,NaN
+        00:00:01,data,...,20.6,0.582,12,...,REST
+        00:00:04,data,...,17.4,0.859,14.9,...,REST
+        ```
+        
+        **Batch Processing:**
+        - Upload multiple files simultaneously for comprehensive analysis
+        - Combines compatible files into unified dataset
+        - Maintains individual file statistics alongside combined results
+        - Handles mixed file formats automatically
+        
+        **Automatic Processing:**
+        - Detects column 't' as start of time-series data  
+        - Preserves Phase column even if before 't'
+        - Skips metadata, units, and empty rows
+        - Focuses analysis on actual measurement data
+        - Processes each batch file independently before combining
+        """)
 
 def create_footer():
     """Create footer with additional information"""

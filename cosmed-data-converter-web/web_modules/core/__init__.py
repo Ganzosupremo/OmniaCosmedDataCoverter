@@ -6,5 +6,6 @@ __version__ = "0.1.0"
 
 from .excel_exporter import ExcelExporter
 from .xml_data_reader import XmlDataReader
+from .phase_analyzer import PhaseAnalyzer, ExercisePhase
 
-__all__ = ["ExcelExporter", "XmlDataReader"]
+__all__ = ["ExcelExporter", "XmlDataReader", "PhaseAnalyzer", "ExercisePhase"]
