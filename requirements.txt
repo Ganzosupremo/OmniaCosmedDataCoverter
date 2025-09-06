@@ -1,3 +1,12 @@
 pandas>=2.0.0
 openpyxl>=3.1.0
 customtkinter>=5.2.0
+streamlit>=1.35
+fastapi>=0.109
+uvicorn>=0.25
+redis>=5
+rq>=1.15
+requests>=2
+pydantic>=2
+psycopg2-binary>=2.9
+boto3>=1.34

@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  web:
+    build: ./services/web
+    command: streamlit run app.py --server.address=0.0.0.0
+    volumes:
+      - .:/app
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+  api:
+    build: ./services/api
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - db
+  worker:
+    build: ./services/worker
+    command: python worker.py
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: phase_analyzer
+      POSTGRES_USER: phase_analyzer
+      POSTGRES_PASSWORD: phase_analyzer
+    ports:
+      - "5432:5432"
