@@ -1,0 +1,47 @@
+version: '3.9'
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+      - redis
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      - redis
+      - db
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: phase
+      POSTGRES_USER: phase
+      POSTGRES_PASSWORD: phase
+    ports:
+      - "5432:5432"
+  storage:
+    image: minio/minio
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"

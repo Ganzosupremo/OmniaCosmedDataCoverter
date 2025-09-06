@@ -7,6 +7,16 @@ A comprehensive Python application for converting COSMED cardiopulmonary exercis
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Web](https://img.shields.io/badge/Web_Interface-Streamlit-red.svg)
 
+## 🧩 SaaS Architecture
+
+An initial multi-service architecture for running the Phase Analyzer as a SaaS is provided in [SAAS_ARCHITECTURE.md](SAAS_ARCHITECTURE.md). It includes Docker Compose definitions for the Streamlit frontend, FastAPI API, RQ worker, PostgreSQL, Redis and an S3-compatible storage service:
+
+```bash
+docker compose up --build
+```
+
+The web interface will be available at `http://localhost:8501` and the API health check at `http://localhost:8000/health`.
+
 ## 🎯 Features
 
 ### ✨ Core Functionality
