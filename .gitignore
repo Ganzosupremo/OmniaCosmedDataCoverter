@@ -11,3 +11,8 @@ modules/utils/__pycache__/
 modules/core/__pycache__/
 modules/gui/__pycache__/
 /test*/
+*.env*
+/scripts/
+*tests.*
+*test.*
+__pycache__/

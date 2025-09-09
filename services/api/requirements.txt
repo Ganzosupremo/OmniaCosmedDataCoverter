@@ -4,3 +4,9 @@ redis
 rq
 psycopg2-binary
 boto3
+sqlalchemy
+pydantic[email]
+pyjwt
+stripe
+python-multipart
+bcrypt

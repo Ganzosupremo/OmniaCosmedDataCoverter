@@ -6,28 +6,69 @@ services:
       dockerfile: Dockerfile.web
     ports:
       - "8501:8501"
+    environment:
+      - API_BASE_URL=http://api:8000
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - api
       - redis
+    volumes:
+      - ./cosmed-data-converter-web:/app/cosmed-data-converter-web
+      - ./services/common:/app/services/common
+  
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://phase:phase@db:5432/phase
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PRO_PRICE_ID=${STRIPE_PRO_PRICE_ID}
+      - STRIPE_TEAM_PRICE_ID=${STRIPE_TEAM_PRICE_ID}
+      - S3_ENDPOINT_URL=http://storage:9000
+      - AWS_ACCESS_KEY_ID=minio
+      - AWS_SECRET_ACCESS_KEY=minio123
+      - S3_BUCKET_NAME=phase-analyzer
     depends_on:
       - db
+      - redis
+      - storage
+    volumes:
+      - ./services:/app/services
+      - ./modules:/app/modules
+  
   worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
+    environment:
+      - DATABASE_URL=postgresql://phase:phase@db:5432/phase
+      - REDIS_URL=redis://redis:6379/0
+      - S3_ENDPOINT_URL=http://storage:9000
+      - AWS_ACCESS_KEY_ID=minio
+      - AWS_SECRET_ACCESS_KEY=minio123
+      - S3_BUCKET_NAME=phase-analyzer
     depends_on:
       - redis
       - db
+      - storage
+    volumes:
+      - ./services:/app/services
+      - ./modules:/app/modules
+  
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+  
   db:
     image: postgres:15
     environment:
@@ -36,6 +77,10 @@ services:
       POSTGRES_PASSWORD: phase
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+  
   storage:
     image: minio/minio
     command: server /data --console-address ':9001'
@@ -45,3 +90,10 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

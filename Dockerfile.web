@@ -1,14 +1,23 @@
-FROM python:3.11-slim
+# Dockerfile.web (sits next to cosmed-data-converter-web/)
+FROM python:3.12-slim
+
+# (Optional) system deps for some wheels
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+
+# Work inside /app
 WORKDIR /app
 
-# Install shared dependencies
-COPY requirements.txt /tmp/base-requirements.txt
-RUN pip install --no-cache-dir -r /tmp/base-requirements.txt
+# Copy the web app folder into the image
+COPY cosmed-data-converter-web/ /app/cosmed-data-converter-web/
 
-# Install web-specific dependencies
-COPY cosmed-data-converter-web/requirements.txt /tmp/web-requirements.txt
-RUN pip install --no-cache-dir -r /tmp/web-requirements.txt
+# Install deps (prefers the app's own requirements if present)
+RUN if [ -f /app/cosmed-data-converter-web/requirements.txt ]; then \
+      pip install --no-cache-dir -r /app/cosmed-data-converter-web/requirements.txt ; \
+    else \
+      pip install --no-cache-dir streamlit ; \
+    fi
 
-COPY . /app
+EXPOSE 8501
 
-CMD ["streamlit", "run", "cosmed-data-converter-web/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Run the Streamlit entry file using its path inside the image
+CMD ["streamlit", "run", "cosmed-data-converter-web/app_saas.py", "--server.port=8501", "--server.address=0.0.0.0"]
